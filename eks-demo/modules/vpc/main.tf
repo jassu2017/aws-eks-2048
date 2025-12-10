@@ -30,7 +30,7 @@ resource "aws_subnet" "eks-private-subnet" {
   count             = length(var.private_subnet_cidr)
   vpc_id            = aws_vpc.eks_vpc.id
   cidr_block        = var.private_subnet_cidr[count.index]# TODO: Add availability zone 
-  availability_zone = var.availability_zones.[count.index]# TODO: Add availability zone 
+  availability_zone = var.availability_zones[count.index]# TODO: Add availability zone 
 
   map_public_ip_on_launch = true  # Automatically assign a public IP address to instances
 
@@ -82,12 +82,12 @@ resource "aws_route_table" "eks-public-rt" {
   }
 
   tags = {
-    Name = "eks-public-RT-${count.index + 1}"    # TODO: Add tag name
+    Name = "eks-public-RT"    # TODO: Add tag name
   }
 }
 
 resource "aws_route_table" "eks-private-rt" {
-  count = length(define.private_subnet_cidr)   #   Replace with private subnet cidr
+  count = length(var.private_subnet_cidr)   #   Replace with private subnet cidr
   vpc_id = aws_vpc.eks_vpc.id
 
   route {
@@ -110,5 +110,5 @@ resource "aws_route_table_association" "private" {
 resource "aws_route_table_association" "public" {
   count          = length(var.public_subnet_cidr)
   subnet_id      = aws_subnet.eks-public-subnet[count.index].id
-  route_table_id = aws_route_table.eks-public-rt[count.index].id
+  route_table_id = aws_route_table.eks-public-rt.id
 }
