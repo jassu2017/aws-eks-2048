@@ -21,7 +21,12 @@ resource "aws_subnet" "eks-public-subnet" {
   map_public_ip_on_launch = true  # Automatically assign a public IP address to instances
 
   tags = {
-    Name    = "eks-public-subnet-${count.index + 1}"  # TODO: Customize naming pattern
+    #Name    = "eks-public-subnet-${count.index + 1}"  # TODO: Customize naming pattern
+    Name = "PublicSubnet-${var.availability_zones[count.index]}"
+    # CRITICAL: ALB Controller uses this tag to find public subnets
+    "kubernetes.io/role/elb" = "1" 
+    # Recommended cluster tag (optional for LBC > v2.1.2, but good practice)
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
     Tier    = "public"
   }
 }
@@ -32,11 +37,15 @@ resource "aws_subnet" "eks-private-subnet" {
   cidr_block        = var.private_subnet_cidr[count.index]# TODO: Add availability zone 
   availability_zone = var.availability_zones[count.index]# TODO: Add availability zone 
 
-  map_public_ip_on_launch = true  # Automatically assign a public IP address to instances
+  map_public_ip_on_launch = false  # Automatically assign a public IP address to instances
 
   tags = {
-    Name    = "eks-private-subnet-${count.index + 1}"  # TODO: Customize naming pattern
+    #Name    = "eks-private-subnet-${count.index + 1}"  # TODO: Customize naming pattern
     Tier    = "private"
+    Name = "PrivateSubnet-${var.availability_zones[count.index]}"
+    # Optional: For internal-facing ALBs, but not needed for your public ALB
+    # "kubernetes.io/role/internal-elb" = "1" 
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
   }
 }
 

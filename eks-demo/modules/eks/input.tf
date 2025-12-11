@@ -30,20 +30,20 @@ variable "cluster_version" {
 
 
 
-variable "node_groups" {
-  description = "EKS node group configuration variable"
+# variable "node_groups" {
+#   description = "EKS node group configuration variable"
 
-  type = map(
-    object({
-      instance_types = list(string)
-      capacity_type  = string
+#   type = map(
+#     object({
+#       instance_types = list(string)
+#       capacity_type  = string
 
-      scaling_config = object({
-        desired_size = number
-        max_size     = number
-        min_size     = number
-      })
-    })
-  )
-}
+#       scaling_config = object({
+#         desired_size = number
+#         max_size     = number
+#         min_size     = number
+#       })
+#     })
+#   )
+# }
 
