@@ -32,7 +32,7 @@ resource "aws_eks_fargate_profile" "system_fargate_profile" {
   pod_execution_role_arn = aws_iam_role.eks_fargate_pod_execution_role.arn
 
   # CRITICAL: Use the PRIVATE SUBNET IDs
-  subnet_ids             = var.subnet_id
+  subnet_ids             = var.subnet_ids
 
   selector {
     namespace = "kube-system" # Targets system pods like CoreDNS
@@ -53,7 +53,7 @@ resource "aws_eks_fargate_profile" "game2048_app_fargate_profile" {
   pod_execution_role_arn = aws_iam_role.eks_fargate_pod_execution_role.arn
 
   # CRITICAL: Use the PRIVATE SUBNET IDs
-  subnet_ids             = var.subnet_id
+  subnet_ids             = var.subnet_ids
 
   # The selector now targets ALL Pods in the 'game2048' namespace
   selector {
@@ -118,7 +118,7 @@ resource "aws_eks_cluster" "main-eks-cluster" {
   role_arn = aws_iam_role.eks-cluster-role.arn
 
   vpc_config {
-    subnet_ids = var.subnet_id
+    subnet_ids = var.subnet_ids
   }
 
   depends_on = [
@@ -128,103 +128,85 @@ resource "aws_eks_cluster" "main-eks-cluster" {
 
 ##################################################################
 
-# --- OIDC Provider for IRSA ---
+# # --- OIDC Provider for IRSA ---
 
-data "tls_certificate" "eks" {
-  url = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
-}
+# data "tls_certificate" "eks" {
+#   url = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
+# }
 
-resource "aws_iam_openid_connect_provider" "eks" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
-}
+# resource "aws_iam_openid_connect_provider" "eks" {
+#   client_id_list  = ["sts.amazonaws.com"]
+#   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+#   url             = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
+# }
 
-# --- LBC IAM Policy and Role ---
+# # --- LBC IAM Policy and Role ---
 
-# The AWS-required IAM Policy for the LBC. Create this policy from the AWS JSON documentation.
-resource "aws_iam_policy" "lbc_policy" {
-  name        = "AWSLoadBalancerControllerIAMPolicy-${var.eks_cluster_name}"
-  description = "Required permissions for the AWS Load Balancer Controller"
-  # NOTE: The content of the policy must be the JSON from the AWS documentation. 
-  # You should load the content from a local file (e.g., file("iam_policy.json"))
-  policy      = file("${path.module}/iam-policy.json") 
-}
+# # The AWS-required IAM Policy for the LBC. Create this policy from the AWS JSON documentation.
+# resource "aws_iam_policy" "lbc_policy" {
+#   name        = "AWSLoadBalancerControllerIAMPolicy-${var.eks_cluster_name}"
+#   description = "Required permissions for the AWS Load Balancer Controller"
+#   # NOTE: The content of the policy must be the JSON from the AWS documentation. 
+#   # You should load the content from a local file (e.g., file("iam_policy.json"))
+#   policy      = file("${path.module}/iam-policy.json") 
+# }
 
-# The IAM Role the LBC Service Account will assume (IRSA)
-resource "aws_iam_role" "lbc_role" {
-  name = "aws-load-balancer-controller-${var.eks_cluster_name}"
+# # The IAM Role the LBC Service Account will assume (IRSA)
+# resource "aws_iam_role" "lbc_role" {
+#   name = "aws-load-balancer-controller-${var.eks_cluster_name}"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Effect = "Allow"
-      Principal = {
-        Federated = aws_iam_openid_connect_provider.eks.arn
-      }
-      Condition = {
-        # Restrict assumption to the LBC Service Account in the 'kube-system' namespace
-        StringEquals = {
-          "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
-        }
-      }
-    }]
-  })
-}
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Action = "sts:AssumeRoleWithWebIdentity"
+#       Effect = "Allow"
+#       Principal = {
+#         Federated = aws_iam_openid_connect_provider.eks.arn
+#       }
+#       Condition = {
+#         # Restrict assumption to the LBC Service Account in the 'kube-system' namespace
+#         StringEquals = {
+#           "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+#         }
+#       }
+#     }]
+#   })
+# }
 
-resource "aws_iam_role_policy_attachment" "lbc_policy_attach" {
-  policy_arn = aws_iam_policy.lbc_policy.arn
-  role       = aws_iam_role.lbc_role.name
-}
+# resource "aws_iam_role_policy_attachment" "lbc_policy_attach" {
+#   policy_arn = aws_iam_policy.lbc_policy.arn
+#   role       = aws_iam_role.lbc_role.name
+# }
 
 
-# --- AWS Load Balancer Controller Deployment (via Helm) ---
+# # --- AWS Load Balancer Controller Deployment (via Helm) ---
 
-resource "helm_release" "aws_load_balancer_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  namespace  = "kube-system"
-  version    = "1.4.0" # Specify a modern version
+# resource "helm_release" "aws_load_balancer_controller" {
+#   name       = "aws-load-balancer-controller"
+#   repository = "https://aws.github.io/eks-charts"
+#   chart      = "aws-load-balancer-controller"
+#   namespace  = "kube-system"
+#   version    = "1.4.0" # Specify a modern version
 
-  set {
-    name  = "clusterName"
-    value = aws_eks_cluster.main-eks-cluster.name
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "true"
-  }
-  
-  # CRITICAL: Annotate the Service Account with the IRSA Role ARN
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.lbc_role.arn
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.lbc_policy_attach,
-    aws_eks_cluster.main-eks-cluster
-  ]
-}
-
-# --- Fargate Profile for 'game2048' (Unchanged from last step) ---
-
-# resource "aws_eks_fargate_profile" "game2048_app_fargate_profile" {
-#   cluster_name           = aws_eks_cluster.main-eks-cluster.name
-#   fargate_profile_name   = "game2048"
-#   pod_execution_role_arn = aws_iam_role.eks_fargate_pod_execution_role.arn
-
-#   # Fargate Pods must run in private subnets
-#   subnet_ids             = var.subnet_id
-
-#   # The Pod Security Group is OPTIONAL, but highly recommended for security.
-#   # security_group_ids = [aws_security_group.game2048_pods_sg.id] 
-
-#   selector {
-#     namespace = "game2048"
+#   set {
+#     name  = "clusterName"
+#     value = aws_eks_cluster.main-eks-cluster.name
 #   }
+
+#   set {
+#     name  = "serviceAccount.create"
+#     value = "true"
+#   }
+  
+#   # CRITICAL: Annotate the Service Account with the IRSA Role ARN
+#   set {
+#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = aws_iam_role.lbc_role.arn
+#   }
+
+#   depends_on = [
+#     aws_iam_role_policy_attachment.lbc_policy_attach,
+#     aws_eks_cluster.main-eks-cluster
+#   ]
 # }
 

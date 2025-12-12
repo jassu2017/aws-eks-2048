@@ -42,10 +42,10 @@ variable "cluster_version" {
 
 }
 
- #variable "subnet_id" {
- #  description = "Subnet ID"
- #  type        = list(string)
- #}
+# variable "subnet_ids" {
+#   description = "Subnet ID"
+#   type        = list(string)
+# }
 
 
 
