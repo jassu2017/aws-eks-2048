@@ -28,7 +28,8 @@ spec:
       containers:
         - name: container-2048
           #image: public.ecr.aws/l6m2u8k2/2048-game:latest # Image used in the tutorial's linked YAML
-          image: docker.io/gabrielschade/2048:latest
+          image: 082088055283.dkr.ecr.ap-south-1.amazonaws.com/my-ecr-repo2025:latest
+          
           ports:
             - containerPort: 80
 ---
