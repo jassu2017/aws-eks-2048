@@ -11,16 +11,17 @@ variable "vpc_id" {
   type        = string
 }
 
- variable "subnet_ids" {
+variable "subnet_ids" {
    description = "Subnet ID"
    type        = list(string)
- }
+}
 
- variable "security_group_ids" {
-  description = "security group ID"
-   type        = list(string)
+variable "security_group_ids" {
+  description = "SG"
+  type = list(string)
+  
+}
 
- }
 
 
 variable "eks_cluster_name" {
