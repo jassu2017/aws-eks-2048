@@ -49,7 +49,7 @@ module "eks" {
   cluster_version  = var.cluster_version          # Kubernetes version for the EKS control plane
   vpc_id           = module.vpc.vpc_id            # Use VPC ID output from the VPC module
   subnet_ids        = module.vpc.private_subnet_ids # Use private subnet IDs from the VPC module
-  security_group_ids = module.vpc.security_group_ids
+  #security_group_ids = module.eks.aws_security_group
 }
 
 ###############################Apply 2##############################
