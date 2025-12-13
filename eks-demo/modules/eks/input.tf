@@ -16,6 +16,12 @@ variable "vpc_id" {
    type        = list(string)
  }
 
+ variable "security_group_ids" {
+  description = "security group ID"
+   type        = list(string)
+
+ }
+
 
 variable "eks_cluster_name" {
   description = "The name of my EKS cluster"

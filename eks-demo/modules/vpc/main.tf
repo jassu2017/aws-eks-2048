@@ -121,3 +121,48 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.eks-public-subnet[count.index].id
   route_table_id = aws_route_table.eks-public-rt.id
 }
+
+resource "aws_security_group" "fargate_egress" {
+  name        = "${var.eks_cluster_name}-fargate-egress-sg"
+  vpc_id      = aws_vpc.eks_vpc.id
+  description = "Allows outbound traffic for Fargate pods (DNS, STS, ECR)"
+
+  # --- OUTBOUND (Egress) Rules ---
+
+  # 1. Allow Outbound DNS (UDP/53) to the entire VPC CIDR range
+  # This allows talking to CoreDNS (cluster DNS service).
+  egress {
+    description = "Allow Outbound DNS to VPC"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [var.vpc_cidr] 
+  }
+
+  # 2. Allow Outbound HTTPS (TCP/443) to the Internet (for STS, ECR, etc.)
+  # This relies on the Private Subnets routing 0.0.0.0/0 to the NAT Gateway.
+  egress {
+    description = "Allow Outbound HTTPS to Internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # 3. Allow all traffic to the EKS Control Plane Security Group (Crucial for status updates)
+  # This assumes you have an output for the cluster security group.
+  egress {
+    description     = "Allow All to EKS Control Plane SG"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    # REFERENCE THE ATTRIBUTE DIRECTLY
+    security_groups = [aws_eks_cluster.this.vpc_config[0].cluster_security_group_id]
+  }
+
+  tags = {
+    Name = "${var.eks_cluster_name}-fargate-egress"
+  }
+
+  depends_on = [ aws_vpc.eks_vpc ]
+}

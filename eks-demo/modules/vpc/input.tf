@@ -19,6 +19,12 @@ variable "private_subnet_cidr" {
   type        = list(string)
 }
 
+# variable "cluster_security_group_id" {
+#   description = "SG"
+#   type        = string
+  
+# }
+
 variable "availability_zones" {
   description = "Availability zones"
   type        = list(string)
