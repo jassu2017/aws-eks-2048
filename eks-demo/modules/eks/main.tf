@@ -130,99 +130,145 @@ resource "aws_eks_cluster" "main-eks-cluster" {
   ]
 }
 
+resource "aws_security_group" "fargate_egress" {
+  name        = "${var.eks_cluster_name}-fargate-egress-sg"
+  vpc_id      = var.vpc_id
+  description = "Allows outbound traffic for Fargate pods (DNS, STS, ECR)"
+
+  # --- OUTBOUND (Egress) Rules ---
+
+  # 1. Allow Outbound DNS (UDP/53) to the entire VPC CIDR range
+  # This allows talking to CoreDNS (cluster DNS service).
+  egress {
+    description = "Allow Outbound DNS to VPC"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["10.0.0.0/16"] 
+  }
+
+  # 2. Allow Outbound HTTPS (TCP/443) to the Internet (for STS, ECR, etc.)
+  # This relies on the Private Subnets routing 0.0.0.0/0 to the NAT Gateway.
+  egress {
+    description = "Allow Outbound HTTPS to Internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # 3. Allow all traffic to the EKS Control Plane Security Group (Crucial for status updates)
+  # This assumes you have an output for the cluster security group.
+  egress {
+    description     = "Allow All to EKS Control Plane SG"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    # REFERENCE THE ATTRIBUTE DIRECTLY
+    security_groups = [aws_eks_cluster.main-eks-cluster.vpc_config[0].cluster_security_group_id]
+    #security_groups = [var.eks_cluster_name.vpc_config[0].cluster_security_group_id]
+  }
+
+  tags = {
+    Name = "${var.eks_cluster_name}-fargate-egress"
+  }
+
+  depends_on = [ aws_eks_cluster.main-eks-cluster ]
+}
+
 #########################################Apply 2#########################
 
-# --- OIDC Provider for IRSA ---
+# #--- OIDC Provider for IRSA ---
 
-# data "tls_certificate" "eks" {
-#   url = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
-# }
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
+}
 
-# resource "aws_iam_openid_connect_provider" "eks" {
-#   client_id_list  = ["sts.amazonaws.com"]
-#   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-#   url             = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
-# }
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.main-eks-cluster.identity[0].oidc[0].issuer
+}
 
-# # --- LBC IAM Policy and Role ---
+# --- LBC IAM Policy and Role ---
 
-# # The AWS-required IAM Policy for the LBC. Create this policy from the AWS JSON documentation.
-# resource "aws_iam_policy" "lbc_policy" {
-#   name        = "AWSLoadBalancerControllerIAMPolicy-${var.eks_cluster_name}"
-#   description = "Required permissions for the AWS Load Balancer Controller"
-#   # NOTE: The content of the policy must be the JSON from the AWS documentation. 
-#   # You should load the content from a local file (e.g., file("iam_policy.json"))
-#   policy      = file("${path.module}/iam-policy.json") 
-# }
+# The AWS-required IAM Policy for the LBC. Create this policy from the AWS JSON documentation.
+resource "aws_iam_policy" "lbc_policy" {
+  name        = "AWSLoadBalancerControllerIAMPolicy-${var.eks_cluster_name}"
+  description = "Required permissions for the AWS Load Balancer Controller"
+  # NOTE: The content of the policy must be the JSON from the AWS documentation. 
+  # You should load the content from a local file (e.g., file("iam_policy.json"))
+  policy      = file("${path.module}/iam-policy.json") 
+}
 
-# # The IAM Role the LBC Service Account will assume (IRSA)
-# resource "aws_iam_role" "lbc_role" {
-#   name = "aws-load-balancer-controller-${var.eks_cluster_name}"
+# The IAM Role the LBC Service Account will assume (IRSA)
+resource "aws_iam_role" "lbc_role" {
+  name = "aws-load-balancer-controller-${var.eks_cluster_name}"
 
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [{
-#       Action = "sts:AssumeRoleWithWebIdentity"
-#       Effect = "Allow"
-#       Principal = {
-#         Federated = aws_iam_openid_connect_provider.eks.arn
-#       }
-#       Condition = {
-#         # Restrict assumption to the LBC Service Account in the 'kube-system' namespace
-#         StringEquals = {
-#           "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
-#         }
-#       }
-#     }]
-#   })
-# }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.eks.arn
+      }
+      Condition = {
+        # Restrict assumption to the LBC Service Account in the 'kube-system' namespace
+        StringEquals = {
+          "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+        }
+      }
+    }]
+  })
+}
 
-# resource "aws_iam_role_policy_attachment" "lbc_policy_attach" {
-#   policy_arn = aws_iam_policy.lbc_policy.arn
-#   role       = aws_iam_role.lbc_role.name
-# }
+resource "aws_iam_role_policy_attachment" "lbc_policy_attach" {
+  policy_arn = aws_iam_policy.lbc_policy.arn
+  role       = aws_iam_role.lbc_role.name
+}
 
 
-# # --- AWS Load Balancer Controller Deployment (via Helm) ---
+# --- AWS Load Balancer Controller Deployment (via Helm) ---
 
-# resource "helm_release" "aws_load_balancer_controller" {
-#   name       = "aws-load-balancer-controller"
-#   repository = "https://aws.github.io/eks-charts"
-#   chart      = "aws-load-balancer-controller"
-#   namespace  = "kube-system"
-#   version    = "1.4.0" # Specify a modern version
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  version    = "1.4.0" # Specify a modern version
 
-#   set {
-#     name  = "clusterName"
-#     value = aws_eks_cluster.main-eks-cluster.name
-#   }
+  set {
+    name  = "clusterName"
+    value = aws_eks_cluster.main-eks-cluster.name
+  }
 
-#   set {
-#     name  = "serviceAccount.create"
-#     value = "true"
-#   }
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
   
-#   # CRITICAL: Annotate the Service Account with the IRSA Role ARN
-#   set {
-#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-#     value = aws_iam_role.lbc_role.arn
-#   }
+  # CRITICAL: Annotate the Service Account with the IRSA Role ARN
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.lbc_role.arn
+  }
 
-#   # Add a 'set' block to pass the VPC ID directly to the Helm chart value
-#   set {
-#     name  = "vpcId"
-#     value = var.vpc_id # <--- Use the vpc_id variable passed to this EKS module
-#   }
+  # Add a 'set' block to pass the VPC ID directly to the Helm chart value
+  set {
+    name  = "vpcId"
+    value = var.vpc_id # <--- Use the vpc_id variable passed to this EKS module
+  }
 
-#   set {
-#     name  = "clusterName"
-#     value = var.eks_cluster_name
-#   }
+  set {
+    name  = "clusterName"
+    value = var.eks_cluster_name
+  }
 
-#   depends_on = [
-#     aws_iam_role_policy_attachment.lbc_policy_attach,
-#     aws_eks_cluster.main-eks-cluster
-#   ]
-# }
+  depends_on = [
+    aws_iam_role_policy_attachment.lbc_policy_attach,
+    aws_eks_cluster.main-eks-cluster
+  ]
+}
 
 

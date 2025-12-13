@@ -6,6 +6,7 @@ variable "region" {
 
 
 
+
 variable "vpc_id" {
   description = "My VPC ID for EKS cluster"
   type        = string
@@ -16,11 +17,11 @@ variable "vpc_id" {
    type        = list(string)
  }
 
- variable "security_group_ids" {
-  description = "security group ID"
-   type        = list(string)
+#  variable "security_group_ids" {
+#   description = "security group ID"
+#    type        = list(string)
 
- }
+#  }
 
 
 variable "eks_cluster_name" {

@@ -15,5 +15,16 @@ output "oidc_issuer_url" {
 
 output "cluster_security_group_id" {
   description = "The security group ID created by EKS for the control plane."
-  value       = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  value       = aws_eks_cluster.main-eks-cluster.vpc_config[0].security_group_ids
+}
+
+# output "cluster_security_group_id" {
+#   description = "The security group ID created by EKS for the control plane."
+#   #value       = aws_eks_cluster.main_eks_cluster.vpc_config[0].cluster_security_group_id
+#   value = module.eks.vpc_config[0].cluster_security_group_id
+# }
+
+output "fargate_egress_security_group_id" {
+  description = "The ID of the custom security group for Fargate Pod egress."
+  value       = aws_security_group.fargate_egress.id
 }
