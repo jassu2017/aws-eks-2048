@@ -26,4 +26,14 @@ export AWS_SECRET_ACCESS_KEY="Xq"
 # Set the region where the EKS cluster was created
 export AWS_REGION="ap-south-1"
 
+Q:Why it is necessary to attach OIDC provider to the eks cluster?
+A: because, IAM roles can be used inside K8s cluster.
+
+Since AWS Load Balancer Controller needs permission to manage AWS Load balancer, need to create IAM policy and associate with K8s Service account.
+After creation of the IAM role (attaching the AWS LBC policy ), LBC can make call to AWS api.
+
+IAM Service account is created in K8s, so that AWS LBC can manager LB on behalf of k8s.
+
+
+
 
